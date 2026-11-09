@@ -17,7 +17,7 @@ LiveArchiveEncoder v8 的实验性视频损伤扩展包。
 ```text
 Rust 控制面
   CLI / TOML 1.1 / Recipe / Plan / Scheduler
-  FFmpeg 三件套发现、版本校验、进程监督
+  FFmpeg provider 解析、版本/指纹校验、进程监督
   Manifest / 输出事务 / 插件 C ABI
         │ cxx / C ABI
         ▼
@@ -27,7 +27,8 @@ C++ 数据面
   buffer / 批处理
         │
         ▼
-FFmpeg / ffprobe / ffplay（LAE 自构建三件套，build ID 锁定）
+FFmpeg / ffprobe / ffplay
+（BtbN / BnqDzj 双来源预构建，provider_fingerprint 锁定）
 ```
 
 ## 硬约束
@@ -39,14 +40,17 @@ FFmpeg / ffprobe / ffplay（LAE 自构建三件套，build ID 锁定）
 - 仅 CLI；
 - 独立 CLI + Rust crate + C ABI 插件；
 - TOML **1.1 only**；
-- 强制 **x86-64-v3**（AVX2/SSE4），不提供 scalar fallback；
-- 仅使用 LAE 共享的**自构建最新 FFmpeg 三件套**：基于 `nonfree+gpl`、强制 `x86-64-v3`、build ID 锁定，不兼容旧版本或 upstream floating `latest`。
+- 本项目 Rust/C++ 强制 **x86-64-v3**（AVX2/SSE4），不提供 scalar fallback；FFmpeg 上游预构建不承诺编译期 v3；
+- 当前支持 **BtbN / FFmpeg-Builds** 与 **BnqDzj / FFmpeg-Builds-nonfree** 两家预构建 FFmpeg 三件套；
+- floating `latest` 只作为更新入口，运行时必须限定 provider、release tag、asset SHA-256 与 `buildconf`；
+- nonfree 二进制只用于私有共享，不进入 public release。
 
 ## 文档
 
 - [结论摘要](docs/EXECUTIVE_SUMMARY.md)
 - [完整架构报告](docs/ARCHITECTURE_REPORT.md)
-- [自构建 FFmpeg 评估报告](docs/FFMPEG_BUILD_REPORT.md)
+- [FFmpeg 双来源兼容与报告审查（当前依据）](docs/FFMPEG_PROVIDER_REVIEW.md)
+- [自构建 FFmpeg 评估（已暂缓 / 未来方案）](docs/FFMPEG_BUILD_REPORT.md)
 - [依赖评估](docs/LIBRARY_DECISIONS.md)
 - [文档索引](docs/README.md)
 
@@ -54,7 +58,8 @@ FFmpeg / ffprobe / ffplay（LAE 自构建三件套，build ID 锁定）
 
 - 旧项目：[LAE-Damager](https://codeberg.org/fr0yo0v0_qwq/LAE-Damager)
 - 母项目：[LiveArchiveEncoder](https://github.com/FroyoCatqwq/LiveArchiveEncoder)
-- FFmpeg 构建基线：[FFmpeg-Builds](https://github.com/FFmpeg-Builds/FFmpeg-Builds)
+- BtbN / FFmpeg-Builds：[FFmpeg-Builds/FFmpeg-Builds](https://github.com/FFmpeg-Builds/FFmpeg-Builds)
+- BnqDzj nonfree：[BnqDzj/FFmpeg-Builds-nonfree](https://github.com/BnqDzj/FFmpeg-Builds-nonfree)
 
 ## 许可证
 

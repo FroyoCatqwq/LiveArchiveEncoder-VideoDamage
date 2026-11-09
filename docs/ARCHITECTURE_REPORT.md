@@ -35,7 +35,7 @@ C++ 数据面
   buffer / 队列 / 批处理
         │
         ▼
-FFmpeg / ffprobe / ffplay（LAE 自构建三件套）
+FFmpeg / ffprobe / ffplay（双来源预构建三件套）
 ```
 
 一句话：
@@ -183,7 +183,7 @@ C++26 特性不能假设全部可用。所有 C++26 特性必须用 feature-test
                 │
                 ▼
 ┌────────────────────────────────────────────────────────────┐
-│           FFmpeg / ffprobe / ffplay（LAE 自构建三件套）      │
+│           FFmpeg / ffprobe / ffplay（双来源预构建三件套）      │
 │  demux / mux / encode / decode / filters / probe / play     │
 └────────────────────────────────────────────────────────────┘
 ```
@@ -237,30 +237,36 @@ ffplay（可选 --play）
 
 ## 5. FFmpeg 三件套
 
-### 5.0 自构建策略
+### 5.0 当前来源策略：双来源预构建
 
-三件套不是直接取上游 floating `latest`，而是由 LAE / VideoDamage 共同维护的**自构建产物**：
+自构建 FFmpeg 暂缓；[`FFMPEG_BUILD_REPORT.md`](FFMPEG_BUILD_REPORT.md) 降级为未来方案。当前实施依据是 [`FFMPEG_PROVIDER_REVIEW.md`](FFMPEG_PROVIDER_REVIEW.md)。
 
-- fork `FFmpeg-Builds/FFmpeg-Builds`，固定 FFmpeg tag/commit 与全部依赖 commit；
-- 基于 `nonfree + gpl` 变体，覆盖尽可能全的编解码器、硬件加速、字幕与滤镜；
-- Linux 使用最新 Clang 23 + `x86-64-v3` + ThinLTO/PGO 评估；
-- Windows 先保留 MinGW-w64 基线，再评估 `clang-cl` + VS2026 SDK；VS2026 用于本项目本体；
-- 强制 `x86-64-v3`，不向下兼容；
-- nonfree 产物仅私有共享，不随 GPL 项目公开发行；
-- 每次构建生成 build ID、`buildconf.txt`、`configure.txt`、`sources.lock`、`capabilities.toml`、`licenses.toml`、`SHA256SUMS`。
+当前支持两家上游预构建三件套：
 
-完整评估与路线图见 [`FFMPEG_BUILD_REPORT.md`](FFMPEG_BUILD_REPORT.md)。
+| provider | 实际仓库 | 当前角色 |
+|---|---|---|
+| `btbn` | `FFmpeg-Builds/FFmpeg-Builds`（`BtbN/FFmpeg-Builds` 指向同一仓库） | GPL / LGPL；适合公开/合规场景 |
+| `bnqdzj-nonfree` | `BnqDzj/FFmpeg-Builds-nonfree` | nonfree；适合 LAE/VideoDamage 内部 |
 
-### 5.1 共享 LAE 自构建三件套
+事实：
+
+- 用户所说的 `bnqdzj/nonfree` 不是有效 GitHub 仓库路径；实际仓库是 `BnqDzj/FFmpeg-Builds-nonfree`。
+- BtbN 当前 `latest` release 不发布 `nonfree` 资产；最近 37 个 release 的资产中 nonfree 数量为 0。
+- BnqDzj 的 `latest` release 提供 `nonfree` / `nonfree-shared` 静态与共享资产。
+- `nonfree` 二进制不可再分发，不能进入 public GitHub Release。
+- 本项目不自构建 FFmpeg，不 fork，不固定 FFmpeg 源码 commit；只固定 provider、release tag、资产 SHA-256 与二进制指纹。
+
+### 5.1 共享 LAE 预构建三件套
 
 解析顺序：
 
 1. `--ffmpeg-dir`；
-2. `LAE_FFMPEG_DIR`；
-3. LAE v8 配置中的 FFmpeg 路径；
-4. 出错，不静默回退到 PATH。
+2. `--ffmpeg-provider` / `--ffmpeg-release` / `--ffmpeg-variant`；
+3. `LAE_FFMPEG_DIR`；
+4. LAE v8 配置中的 FFmpeg 路径与 provider 记录；
+5. 出错，不静默回退到 PATH，不自动猜测 provider。
 
-三件套必须来自同一目录/同一构建：
+三件套必须来自同一目录/同一 release/同一资产：
 
 ```text
 ffmpeg
@@ -272,17 +278,25 @@ ffplay
 
 - 三个文件都存在且可执行；
 - `ffmpeg -version` / `ffprobe -version` / `ffplay -version` 的版本核心一致；
-- 记录完整 banner 到 manifest；
-- 若版本不一致，直接报错，不尝试混用。
+- `ffmpeg -buildconf` 与 provider/variant 声明一致：
+  - BtbN GPL：`--enable-gpl --enable-version3`；
+  - BtbN LGPL：不含 `--enable-gpl`；
+  - BnqDzj nonfree：`--enable-gpl --enable-version3 --enable-nonfree`；
+- 资产 `checksums.sha256` 与本地二进制 SHA-256 一致；
+- `provider_fingerprint` 与配置/LAE 记录一致；
+- 记录完整 banner、buildconf hash、capabilities hash 到 manifest；
+- 任一校验失败直接 `LAE-VD-E1004`，不混用、不降级。
 
-### 5.2 只支持自构建最新构建
+### 5.2 只支持 pin 后的最新 provider 构建
 
 - 不维护旧版本兼容矩阵；
 - 不做“低于某版本则降级”；
-- 以 LAE v8 / VideoDamage 共享的自构建 `build ID` 为唯一支持版本；
-- 启动时校验三件套 banner、build ID、`ffmpeg -buildconf` 关键开关与 `SHA256SUMS`；不同构建直接 `LAE-VD-E1004`；
-- 能力探测结果按 build ID + 路径 hash 缓存；
-- 旧版本或非预期构建报错信息必须告诉用户“请切换到 LAE 自构建的最新 FFmpeg 三件套”。
+- floating `latest` 只能作为更新入口，不能作为运行时基线；
+- 运行时必须 pin：provider、channel、release tag、asset name、asset SHA-256、binary SHA-256；
+- BtbN 与 BnqDzj 发布时间可能不同，不要求同一时间戳，但要求各自是当前激活的 latest snapshot；
+- 升级必须显式更新配置，并重新跑能力矩阵、真实语料与性能基准；
+- 能力探测结果按 `provider_fingerprint` 缓存，不按路径或版本字符串缓存；
+- 旧版本或非预期构建报错信息必须指向“当前 provider 的 pinned release”。
 
 ### 5.3 能力探测
 
@@ -290,12 +304,15 @@ ffplay
 
 ```text
 ffmpeg -version
+ffmpeg -buildconf
 ffmpeg -decoders
 ffmpeg -encoders
 ffmpeg -filters
 ffmpeg -bsfs
+ffmpeg -hwaccels
 ffmpeg -muxers
 ffmpeg -demuxers
+ffmpeg -protocols
 ffprobe -version
 ffplay -version
 ```
@@ -303,10 +320,20 @@ ffplay -version
 缓存到：
 
 ```text
-%LOCALAPPDATA%/LAE/VideoDamage/caps/<trio-hash>.toml
+%LOCALAPPDATA%/LAE/VideoDamage/caps/<provider_fingerprint>.toml
 ```
 
-注意：能力缓存也是 TOML，统一 TOML 1.1。
+缓存 key：
+
+```text
+provider + release_tag + asset_sha256 + binary_sha256 + buildconf_hash + target + variant
+```
+
+注意：
+
+- 能力缓存也是 TOML，统一 TOML 1.1；
+- BtbN 与 BnqDzj 的 `buildconf`、编解码器、滤镜、硬件接口可能不同；
+- 同一操作在某一 provider 不支持时明确警告或拒绝，不按 provider 名称硬编码能力，也不静默降级。
 
 ### 5.4 ffplay 的定位
 
@@ -329,6 +356,8 @@ ffplay -version
 | C | 解码帧操作（drop/freeze/repeat） | FFmpeg decode/encode | 决策确定，字节依赖编码器 |
 | D | 像素/滤镜操作 | FFmpeg filters | 滤镜图确定，字节依赖编码器 |
 | E | 容器/文件级（truncate/segment cut） | 字节/容器 | D1（纯字节） |
+
+不同 provider 的 `buildconf`、编码器、滤镜、硬件接口可能不同。实际能力以 `capabilities.toml` 为准，不按 provider 名称硬编码；不支持的操作明确警告或拒绝。
 
 ### 6.2 码流级（Tier A）
 
@@ -425,7 +454,13 @@ toml = "=1.2.1"
 schema = "lae.videodamage/v1"
 
 [ffmpeg]
+provider = "bnqdzj-nonfree"     # 或 "btbn"
+channel = "master-latest"
+variant = "nonfree"             # btbn 可用 "gpl" / "lgpl"
+release_tag = "autobuild-2026-11-08-17-59"
+asset_sha256 = "..."
 trio_dir = "C:/Tools/LAE/ffmpeg"
+allow_shared = false
 
 [run]
 jobs = 4
@@ -479,7 +514,8 @@ TOML 1.1 基本是 1.0 的超集，**无法从语法层拒绝 1.0 写法**。因
 - 不使用 AVX-512；
 - 不提供 scalar fallback；
 - 启动时检查 CPUID：AVX2、BMI2、FMA、MOVBE、SSE4.2；
-- 不满足时直接报错，不静默降级。
+- 不满足时直接报错，不静默降级；
+- 以上只约束本项目 Rust/C++ 代码；BtbN / BnqDzj 上游预构建 FFmpeg 不承诺编译期 `x86-64-v3`，其 SIMD 能力以 `runtime-cpudetect` 与 `buildconf` 为准。
 
 ### 8.2 为什么
 
@@ -711,6 +747,11 @@ lae-videodamage version
 ```text
 --config <PATH>
 --ffmpeg-dir <PATH>
+--ffmpeg-provider btbn|bnqdzj-nonfree
+--ffmpeg-channel <CHANNEL>
+--ffmpeg-release <TAG>
+--ffmpeg-variant <VARIANT>
+--ffmpeg-asset-sha256 <SHA256>
 --json / --jsonl
 --quiet
 --progress plain|off
@@ -821,10 +862,10 @@ FFmpeg 写临时文件时，Rust 必须检查退出码和文件大小；不能�
 ### 14.3 确定性标注
 
 - Tier A（自己的 parser + 自己的改写）：D1；
-- Tier C/D（重编码/滤镜）：决策确定，字节依赖编码器；
+- Tier C/D（重编码/滤镜）：决策确定，字节依赖 encoder/buildconf；
 - Tier B（FFmpeg BSF 随机数）：D3；
-- 容器输出：同一 FFmpeg 三件套构建内可复现，跨构建不承诺；
-- manifest 记录 trio 版本、编码器、muxer、CPU 基线。
+- 容器输出：同一 `provider_fingerprint` 内可复现；跨 provider、跨 release、跨 buildconf 不承诺；
+- manifest 记录 provider、channel、release tag、asset SHA-256、三件套二进制 SHA-256、buildconf hash、capabilities hash、编码器、muxer、项目 CPU 基线与 FFmpeg CPU 基线。
 
 ---
 
@@ -945,32 +986,36 @@ FFmpeg 写临时文件时，Rust 必须检查退出码和文件大小；不能�
 | 风险 | 影响 | 对策 |
 |---|---|---|
 | FFmpeg CLI 进程开销 | 短文件慢 | 批量复用/合并进程；接受启动成本 |
-| FFmpeg 版本变化 | 输出字节变化 | 只共享 LAE 最新 trio；manifest 记录；不跨版本承诺 D1 |
+| 双来源能力差异 | 同一操作在某一 provider 不可用 | 按 `buildconf` 与 capabilities 决策；不按 provider 名称硬编码 |
+| floating `latest` 不可复现 | 同 URL 内容每天变化 | 只作为更新入口；运行时 pin release tag + asset SHA-256 |
+| FFmpeg 版本变化 | 输出字节变化 | `provider_fingerprint` + manifest；不跨 fingerprint 承诺 D1 |
 | BSF 随机数 | packet 操作 D3 | 如实标注；不假装 D1 |
 | 全流保留复杂 | 字幕/多音轨丢失 | `-map 0` + 逐流验证 + 真实语料 |
 | HEVC/AV1 parser 复杂 | 码流级覆盖慢 | 先 H.264/HEVC；AV1 后置 |
 | TOML 1.1 解析器 | 生态支持 | `toml 1.2.1+spec-1.1.0`；Rust 单点解析 |
-| AVX2 强制 | 老机器无法运行 | 启动 CPUID 检查；文档明确 |
+| 项目 x86-64-v3 强制 | 老机器无法运行 | 启动 CPUID 检查；文档明确；FFmpeg 预构建 CPU 基线单独记录 |
 | 多调度器超订 | 性能下降 | tokio/crossbeam/oneTBB/FFmpeg 线程配额 |
 | 插件 ABI | 宿主崩溃 | 版本化 C ABI、opaque handle、catch |
 | folly/taskflow 引入 | 构建/维护爆炸 | 已拒绝 |
-| GPL/nonfree | 发布合规 | 明确许可证与 FFmpeg 构建来源 |
+| GPL/nonfree | 发布合规 | BtbN GPL 可公开；BnqDzj nonfree 仅私有；明确来源与许可证 |
 
 ---
 
 ## 19. 路线图
 
-### M0：三件套 + TOML + 全流复制
+### M0：双来源三件套 + TOML + 全流复制
 
-- FFmpeg 三件套发现/版本校验/能力探测；
+- 实现 `FfmpegProvider` / `TrioDescriptor` / `provider_fingerprint`；
+- 建立 BtbN 与 BnqDzj provider 注册表，固定 release tag、asset SHA-256 与能力矩阵；
+- FFmpeg 三件套发现、版本/`buildconf`/SHA-256 校验、能力探测；
 - TOML 1.1 schema；
-- CLI `probe` / `copy`；
+- CLI `probe` / `copy`，增加 provider/release/variant 参数；
 - C++ 内核骨架 + doctest；
 - 全流复制，4 流进 4 流出；
 - 输出事务 + manifest；
 - Windows/Linux 构建。
 
-**验收：** 4 流输入 4 流输出；逐流 hash 一致；C++23/C++26 都能编译；三件套不一致直接报错。
+**验收：** BtbN GPL/LGPL 与 BnqDzj nonfree 都能独立通过；4 流输入 4 流输出；逐流 hash 一致；C++23/C++26 都能编译；provider/`buildconf`/SHA-256 不匹配直接报错；floating `latest` 不进入 manifest；nonfree 不进入公开发布资产清单。
 
 ### M1：frame/pixel + 更多编码
 
@@ -1010,11 +1055,11 @@ FFmpeg 写临时文件时，Rust 必须检查退出码和文件大小；不能�
 |---|---|---|
 | D1 | 产品代码只 Rust/C++ | 约束 |
 | D2 | Rust 控制面 + C++ AVX2 数据面 | 分工清晰，避免 C++ 进程管理重复 |
-| D3 | FFmpeg 三件套为媒体层 | 约束，格式覆盖最大化 |
-| D4 | 只用 LAE 共享最新 trio | 版本一致性、可复现边界 |
+| D3 | FFmpeg 双来源预构建三件套为媒体层 | 当前不自构建；BtbN GPL/LGPL + BnqDzj nonfree |
+| D4 | provider + release tag + SHA-256 pin | floating `latest` 不可复现；用 `provider_fingerprint` 锁定 |
 | D5 | 默认全流保留 | 归档完整性 |
 | D6 | TOML 1.1，Rust 单点解析 | 约束，避免 C++ parser 分裂 |
-| D7 | x86-64-v3 强制，无降级 | 性能目标 |
+| D7 | 本项目 Rust/C++ x86-64-v3 强制；FFmpeg 预构建不承诺 v3 | 区分项目代码与上游二进制 |
 | D8 | Rust 1.99.1 edition 2024 | 约束 |
 | D9 | C++26 目标、C++23 下限 | 编译器现实 |
 | D10 | CLI only，clap | 约束 |
@@ -1032,11 +1077,12 @@ FFmpeg 写临时文件时，Rust 必须检查退出码和文件大小；不能�
 
 > **Rust 做可复现的控制面，C++ 做 AVX2 数据面，FFmpeg 三件套做格式与编解码底座。**
 
-最重要的三条工程红线：
+最重要的四条工程红线：
 
 1. **全流保留**：默认 `-map 0`，只处理目标流，字幕/多音轨/章节/附件不能静默丢。
-2. **三件套一致**：只使用 LAE 共享的自构建 FFmpeg 构建；build ID/`buildconf` 不一致直接失败。
-3. **确定性诚实**：码流级 D1、重编码决策确定、packet BSF D3；容器输出只承诺同 trio 构建内可复现。
+2. **双来源 provider 明确**：BtbN 与 BnqDzj 不混用、不猜测、不回退 PATH；provider/release tag/SHA-256/`buildconf` 不一致直接失败。
+3. **确定性诚实**：码流级 D1、重编码决策确定、packet BSF D3；容器输出只承诺同 `provider_fingerprint` 内可复现。
+4. **许可证分流**：BtbN GPL 可公开；BnqDzj nonfree 仅私有，不能进入 public release。
 
 C++ 依赖只保留真正有职责的：
 

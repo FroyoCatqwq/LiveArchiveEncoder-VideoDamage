@@ -1,13 +1,18 @@
-# 自构建 FFmpeg 三件套技术评估报告
+# 自构建 FFmpeg 三件套技术评估报告（暂缓 / 未来方案）
 
 > 日期：2026-11-10  
+> 状态：**已暂缓，不是当前实施依据**  
+> 当前实施依据：[`FFMPEG_PROVIDER_REVIEW.md`](FFMPEG_PROVIDER_REVIEW.md)  
 > 项目：LiveArchiveEncoder-VideoDamage / LiveArchiveEncoder v8  
-> 目标：为母项目与 VideoDamage 扩展包共同提供一套定制、`nonfree+gpl`、覆盖尽可能全、面向 `x86-64-v3` 深度优化的 `ffmpeg` / `ffprobe` / `ffplay` 三件套  
-> 基线：<https://github.com/FFmpeg-Builds/FFmpeg-Builds>
+> 原目标：为母项目与 VideoDamage 扩展包共同提供一套定制、`nonfree+gpl`、覆盖尽可能全、面向 `x86-64-v3` 深度优化的 `ffmpeg` / `ffprobe` / `ffplay` 三件套  
+> 原基线：<https://github.com/FFmpeg-Builds/FFmpeg-Builds>  
+> 说明：本报告中关于自构建、FFmpeg 本体 `x86-64-v3`、ThinLTO/PGO、Clang/VS2026 编译 FFmpeg 的内容全部保留为未来技术储备；当前项目不执行自构建。
 
 ---
 
 ## 1. 执行摘要
+
+> 状态提示：本章及以下所有“建议 / 最终建议”均属于**未来方案**；当前实施依据是 [`FFMPEG_PROVIDER_REVIEW.md`](FFMPEG_PROVIDER_REVIEW.md)，即 BtbN / BnqDzj 双来源预构建三件套。
 
 可以基于 `FFmpeg-Builds/FFmpeg-Builds` 做自构建，但不能直接照搬上游 daily build。原因是用户要求同时满足：
 
@@ -605,7 +610,9 @@ VideoDamage/LAE 不应只看 `ffmpeg -version` 字符串，应校验：
 
 ---
 
-## 12. 结论
+## 12. 结论（未来方案）
+
+> 注意：以下结论仅适用于将来自构建重新启动时；当前不实施。当前实施依据是 [`FFMPEG_PROVIDER_REVIEW.md`](FFMPEG_PROVIDER_REVIEW.md)。
 
 用户的目标可以成立，但需要把“编译 FFmpeg”升级为“维护一条 FFmpeg 发行工程线”。
 
