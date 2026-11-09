@@ -2,7 +2,7 @@
 
 > 项目：LiveArchiveEncoder-VideoDamage  
 > 状态：架构评估阶段，尚未开始实现  
-> 日期：2026-11-09
+> 日期：2026-11-10
 
 ---
 
@@ -12,6 +12,7 @@
 |---|---|
 | [`EXECUTIVE_SUMMARY.md`](EXECUTIVE_SUMMARY.md) | 结论摘要：目标架构、硬约束、编码分层、依赖结论、确定性口径、M0 计划 |
 | [`ARCHITECTURE_REPORT.md`](ARCHITECTURE_REPORT.md) | 完整技术评估：旧项目分析、目标架构、FFmpeg 三件套、TOML 1.1、CPU 基线、Rust/C++ 分工、并发、跨平台、测试、风险、路线图 |
+| [`FFMPEG_BUILD_REPORT.md`](FFMPEG_BUILD_REPORT.md) | 自构建 FFmpeg 评估：FFmpeg-Builds 基线、全编解码器/硬件加速、x86-64-v3、LTO/OpenMP/PGO、Clang/VS2026、授权、验收与路线图 |
 | [`LIBRARY_DECISIONS.md`](LIBRARY_DECISIONS.md) | 依赖评估：Rust/C++ 库的版本、维护状态、采用/拒绝理由、最终依赖集 |
 
 ---
@@ -31,7 +32,7 @@ C++ 数据面
   buffer / 批处理
         │
         ▼
-FFmpeg / ffprobe / ffplay（共享 LAE 三件套）
+FFmpeg / ffprobe / ffplay（LAE 自构建三件套，build ID 锁定）
 ```
 
 - 产品代码只 Rust + C++；
@@ -41,7 +42,9 @@ FFmpeg / ffprobe / ffplay（共享 LAE 三件套）
 - 仅 CLI；
 - 独立 CLI + Rust crate + C ABI 插件；
 - TOML 1.1 only；
-- x86-64-v3 强制。
+- x86-64-v3 强制；
+- 自构建 FFmpeg 三件套：`nonfree+gpl`、`x86-64-v3`、build ID 锁定；
+- 不兼容旧版本或 upstream floating `latest`。
 
 ---
 
@@ -49,10 +52,13 @@ FFmpeg / ffprobe / ffplay（共享 LAE 三件套）
 
 先做 M0：
 
-1. FFmpeg 三件套发现、版本一致性校验、能力探测；
+0. 固定 FFmpeg / FFmpeg-Builds / 依赖 commit，生成 build ID 与能力矩阵。
+1. FFmpeg 三件套发现、build ID / 版本一致性校验、能力探测；
 2. TOML 1.1 schema + Rust 解析；
 3. CLI `probe` / `copy`；
 4. C++ 内核骨架 + doctest + oneTBB；
 5. 全流复制：4 流输入 → 4 流输出，逐流 hash 一致；
 6. 输出事务 + manifest；
 7. Windows/Linux 构建，C++23/C++26 双标准。
+
+自构建细节见 [`FFMPEG_BUILD_REPORT.md`](FFMPEG_BUILD_REPORT.md)。

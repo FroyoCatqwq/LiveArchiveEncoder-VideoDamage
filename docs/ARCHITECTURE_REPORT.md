@@ -35,7 +35,7 @@ C++ 数据面
   buffer / 队列 / 批处理
         │
         ▼
-FFmpeg / ffprobe / ffplay（共享 LAE 三件套）
+FFmpeg / ffprobe / ffplay（LAE 自构建三件套）
 ```
 
 一句话：
@@ -183,7 +183,7 @@ C++26 特性不能假设全部可用。所有 C++26 特性必须用 feature-test
                 │
                 ▼
 ┌────────────────────────────────────────────────────────────┐
-│           FFmpeg / ffprobe / ffplay（共享 LAE 三件套）      │
+│           FFmpeg / ffprobe / ffplay（LAE 自构建三件套）      │
 │  demux / mux / encode / decode / filters / probe / play     │
 └────────────────────────────────────────────────────────────┘
 ```
@@ -237,7 +237,21 @@ ffplay（可选 --play）
 
 ## 5. FFmpeg 三件套
 
-### 5.1 共享 LAE 三件套
+### 5.0 自构建策略
+
+三件套不是直接取上游 floating `latest`，而是由 LAE / VideoDamage 共同维护的**自构建产物**：
+
+- fork `FFmpeg-Builds/FFmpeg-Builds`，固定 FFmpeg tag/commit 与全部依赖 commit；
+- 基于 `nonfree + gpl` 变体，覆盖尽可能全的编解码器、硬件加速、字幕与滤镜；
+- Linux 使用最新 Clang 23 + `x86-64-v3` + ThinLTO/PGO 评估；
+- Windows 先保留 MinGW-w64 基线，再评估 `clang-cl` + VS2026 SDK；VS2026 用于本项目本体；
+- 强制 `x86-64-v3`，不向下兼容；
+- nonfree 产物仅私有共享，不随 GPL 项目公开发行；
+- 每次构建生成 build ID、`buildconf.txt`、`configure.txt`、`sources.lock`、`capabilities.toml`、`licenses.toml`、`SHA256SUMS`。
+
+完整评估与路线图见 [`FFMPEG_BUILD_REPORT.md`](FFMPEG_BUILD_REPORT.md)。
+
+### 5.1 共享 LAE 自构建三件套
 
 解析顺序：
 
@@ -261,14 +275,14 @@ ffplay
 - 记录完整 banner 到 manifest；
 - 若版本不一致，直接报错，不尝试混用。
 
-### 5.2 只支持最新构建
+### 5.2 只支持自构建最新构建
 
 - 不维护旧版本兼容矩阵；
 - 不做“低于某版本则降级”；
-- 以 LAE v8 当前共享构建为唯一支持版本；
-- 启动时比较三件套版本；不同构建直接 `LAE-VD-E1004`；
-- 能力探测结果按 trio 版本 + 路径 hash 缓存；
-- 旧版本报错信息必须告诉用户“请切换到 LAE 共享的最新 FFmpeg 三件套”。
+- 以 LAE v8 / VideoDamage 共享的自构建 `build ID` 为唯一支持版本；
+- 启动时校验三件套 banner、build ID、`ffmpeg -buildconf` 关键开关与 `SHA256SUMS`；不同构建直接 `LAE-VD-E1004`；
+- 能力探测结果按 build ID + 路径 hash 缓存；
+- 旧版本或非预期构建报错信息必须告诉用户“请切换到 LAE 自构建的最新 FFmpeg 三件套”。
 
 ### 5.3 能力探测
 
@@ -1021,7 +1035,7 @@ FFmpeg 写临时文件时，Rust 必须检查退出码和文件大小；不能�
 最重要的三条工程红线：
 
 1. **全流保留**：默认 `-map 0`，只处理目标流，字幕/多音轨/章节/附件不能静默丢。
-2. **三件套一致**：只使用 LAE 共享的最新 FFmpeg 构建；版本不一致直接失败。
+2. **三件套一致**：只使用 LAE 共享的自构建 FFmpeg 构建；build ID/`buildconf` 不一致直接失败。
 3. **确定性诚实**：码流级 D1、重编码决策确定、packet BSF D3；容器输出只承诺同 trio 构建内可复现。
 
 C++ 依赖只保留真正有职责的：
