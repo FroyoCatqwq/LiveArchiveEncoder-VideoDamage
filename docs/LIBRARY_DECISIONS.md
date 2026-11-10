@@ -293,6 +293,7 @@ moodycamel::ConcurrentQueue
 
 ## 7. 相关文档
 
+- 第二轮核查：[`PRE_CODING_ROUND2_CHECK.md`](PRE_CODING_ROUND2_CHECK.md)
 - 结论摘要：[`EXECUTIVE_SUMMARY.md`](EXECUTIVE_SUMMARY.md)
 - 完整架构：[`ARCHITECTURE_REPORT.md`](ARCHITECTURE_REPORT.md)
-- 文档索引：[`README.md`](README.md)
+- 文档索引（docs/README.md）：[`README.md`](README.md)

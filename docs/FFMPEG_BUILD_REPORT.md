@@ -1,18 +1,22 @@
 # 自构建 FFmpeg 三件套技术评估报告（暂缓 / 未来方案）
 
-> 日期：2026-11-10  
-> 状态：**已暂缓，不是当前实施依据**  
-> 当前实施依据：[`FFMPEG_PROVIDER_REVIEW.md`](FFMPEG_PROVIDER_REVIEW.md)  
-> 项目：LiveArchiveEncoder-VideoDamage / LiveArchiveEncoder v8  
-> 原目标：为母项目与 VideoDamage 扩展包共同提供一套定制、`nonfree+gpl`、覆盖尽可能全、面向 `x86-64-v3` 深度优化的 `ffmpeg` / `ffprobe` / `ffplay` 三件套  
-> 原基线：<https://github.com/FFmpeg-Builds/FFmpeg-Builds>  
+> 日期：2026-11-10
+> 状态：**已暂缓，不是当前实施依据**
+> 当前 FFmpeg 契约：[`FFMPEG_PROVIDER_REVIEW.md`](FFMPEG_PROVIDER_REVIEW.md)
+> 当前 Go/No-Go：[`PRE_CODING_FINAL_REVIEW.md`](PRE_CODING_FINAL_REVIEW.md)
+> 第二轮核查：[`PRE_CODING_ROUND2_CHECK.md`](PRE_CODING_ROUND2_CHECK.md)
+> 归属：**FFmpeg Provider Extension Pack 的未来能力**；core 不包含自构建、下载、安装、部署。
+> 项目：LiveArchiveEncoder-VideoDamage / LiveArchiveEncoder v8
+> 原目标：为母项目与 VideoDamage 扩展包共同提供一套定制、`nonfree+gpl`、覆盖尽可能全、面向 `x86-64-v3` 深度优化的 `ffmpeg` / `ffprobe` / `ffplay` 三件套
+> 原基线：<https://github.com/FFmpeg-Builds/FFmpeg-Builds>
+> 时态说明：本报告中“必须 / 应 / 项目侧”均指未来方案启动后；当前 core 不适用。
 > 说明：本报告中关于自构建、FFmpeg 本体 `x86-64-v3`、ThinLTO/PGO、Clang/VS2026 编译 FFmpeg 的内容全部保留为未来技术储备；当前项目不执行自构建。
 
 ---
 
 ## 1. 执行摘要
 
-> 状态提示：本章及以下所有“建议 / 最终建议”均属于**未来方案**；当前实施依据是 [`FFMPEG_PROVIDER_REVIEW.md`](FFMPEG_PROVIDER_REVIEW.md)，即 BtbN / BnqDzj 双来源预构建三件套。
+> 状态提示：本章及以下所有“建议 / 最终建议”均属于**未来方案**；当前 core 只消费 BtbN `n9.0` 稳定版 GPL 三件套，下载/安装/部署/ nonfree/自构建属于 [`FFMPEG_PROVIDER_REVIEW.md`](FFMPEG_PROVIDER_REVIEW.md) 所述的 Extension Pack；第二轮核查见 [`PRE_CODING_ROUND2_CHECK.md`](PRE_CODING_ROUND2_CHECK.md)。
 
 可以基于 `FFmpeg-Builds/FFmpeg-Builds` 做自构建，但不能直接照搬上游 daily build。原因是用户要求同时满足：
 
@@ -355,7 +359,9 @@ AR/NM/RANLIB 换 gcc-ar/gcc-nm/gcc-ranlib
 
 建议放在 M4，而不是 M0/M1。
 
-### 5.6 “程序内部能用 v3 特性就用”
+### 5.6 “程序内部能用 v3 特性就用”（未来方案）
+
+> 注意：本节只适用于将来自构建项目重新启动时。当前 core 不要求 FFmpeg 编译期 `x86-64-v3`；当前契约见 [`FFMPEG_PROVIDER_REVIEW.md`](FFMPEG_PROVIDER_REVIEW.md) §5.2。
 
 分三层：
 
@@ -363,9 +369,9 @@ AR/NM/RANLIB 换 gcc-ar/gcc-nm/gcc-ranlib
 |---|---|
 | 本项目 Rust | `.cargo/config.toml` `target-cpu=x86-64-v3`，`is_x86_feature_detected!` 启动检查；AVX2 内核放 C++ |
 | 本项目 C++ | `/arch:AVX2`（MSVC）/ `-march=x86-64-v3`（Clang）；`<immintrin.h>`；doctest + Google Benchmark |
-| FFmpeg | `--cpu=x86-64-v3` + 保留 runtime cpudetect + 手写 SIMD/AVX2 分发；不禁用 avx2/fma3 |
+| FFmpeg（仅未来自构建） | `--cpu=x86-64-v3` + 保留 runtime cpudetect + 手写 SIMD/AVX2 分发；不禁用 avx2/fma3 |
 
-三层必须同时满足 v3；启动时的 CPUID 检查由本项目入口统一给出清晰错误。
+在该未来方案中，三层才同时满足 v3；启动时的 CPUID 检查由本项目入口统一给出清晰错误。当前 core 仍只要求本项目 Rust/C++ 满足 v3。
 
 ---
 
@@ -515,9 +521,11 @@ fate-summary.txt
 SHA256SUMS
 ```
 
-### 9.3 项目侧版本门禁
+### 9.3 将来自构建项目的版本门禁（未来方案）
 
-VideoDamage/LAE 不应只看 `ffmpeg -version` 字符串，应校验：
+> 注意：本节不是当前 core 门禁。当前 core 不接受 `--enable-nonfree`、不要求 FFmpeg `--cpu=x86-64-v3`，也不使用自构建 build ID；当前契约见 [`FFMPEG_PROVIDER_REVIEW.md`](FFMPEG_PROVIDER_REVIEW.md)。
+
+若将来自构建项目重新启动，VideoDamage/LAE 不应只看 `ffmpeg -version` 字符串，应校验：
 
 - 三个二进制同目录；
 - `ffmpeg -buildconf` 包含预期 `--cpu=x86-64-v3`、`--enable-gpl`、`--enable-nonfree`、硬件/字幕/滤镜开关；
@@ -526,7 +534,9 @@ VideoDamage/LAE 不应只看 `ffmpeg -version` 字符串，应校验：
 - `SHA256SUMS` 与本地记录一致；
 - Manifest 写入 build ID、编译器、configure hash、CPU 基线。
 
-### 9.4 验收矩阵
+### 9.4 验收矩阵（未来方案）
+
+> 注意：以下矩阵仅适用于 Extension Pack 自构建路线，不是当前 core 的 M0 / C10 质量门禁。
 
 | 项 | 验收 |
 |---|---|
@@ -559,7 +569,9 @@ VideoDamage/LAE 不应只看 `ffmpeg -version` 字符串，应校验：
 
 ---
 
-## 11. 分阶段路线图
+## 11. 分阶段路线图（Extension Pack 未来方案，非 core Phase/M0）
+
+> 注意：本节 M0–M5 是 FFmpeg Provider Extension Pack 将来自构建路线，不是 `WORK_BREAKDOWN.md` 的 Phase 0–4，也不是当前 core 的 M0 全流复制门禁。
 
 ### M0：固定基线
 
@@ -612,7 +624,7 @@ VideoDamage/LAE 不应只看 `ffmpeg -version` 字符串，应校验：
 
 ## 12. 结论（未来方案）
 
-> 注意：以下结论仅适用于将来自构建重新启动时；当前不实施。当前实施依据是 [`FFMPEG_PROVIDER_REVIEW.md`](FFMPEG_PROVIDER_REVIEW.md)。
+> 注意：以下结论仅适用于将来自构建重新启动时；当前不实施。当前 FFmpeg 契约见 [`FFMPEG_PROVIDER_REVIEW.md`](FFMPEG_PROVIDER_REVIEW.md)，当前 Go/No-Go 见 [`PRE_CODING_FINAL_REVIEW.md`](PRE_CODING_FINAL_REVIEW.md)，第二轮核查见 [`PRE_CODING_ROUND2_CHECK.md`](PRE_CODING_ROUND2_CHECK.md)。
 
 用户的目标可以成立，但需要把“编译 FFmpeg”升级为“维护一条 FFmpeg 发行工程线”。
 
@@ -639,4 +651,4 @@ lae-ffmpeg-build（独立构建仓库）
 LAE v8 与 VideoDamage 共享同一 build ID 的 ffmpeg/ffprobe/ffplay
 ```
 
-本报告即完整构建方案；架构上下文见 [`ARCHITECTURE_REPORT.md`](ARCHITECTURE_REPORT.md)，结论见 [`EXECUTIVE_SUMMARY.md`](EXECUTIVE_SUMMARY.md)。
+本报告仅记录未来自构建方案；当前结论（本项目不自构建）见 [`EXECUTIVE_SUMMARY.md`](EXECUTIVE_SUMMARY.md)，当前 FFmpeg 契约见 [`FFMPEG_PROVIDER_REVIEW.md`](FFMPEG_PROVIDER_REVIEW.md)，第二轮核查见 [`PRE_CODING_ROUND2_CHECK.md`](PRE_CODING_ROUND2_CHECK.md)。
